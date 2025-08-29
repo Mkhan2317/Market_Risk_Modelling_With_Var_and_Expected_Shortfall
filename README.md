@@ -557,7 +557,7 @@ Then use $z_{\alpha}^{\text{CF}}$ in the parametric VaR formula.
 
 ---
 
-## 13.10 Where these plug into your code
+## 13.10 Where these plug into my code
 
 * **Parametric VaR/ES:** Sections 13.2.2 and 13.3.3 → functions `VaR_parametric`, `ES_parametric`.
 * **Historical VaR/ES:** Sections 13.2.3 and 13.3.2 → functions `VaR_historical`, `ES_historical` (empirical percentiles and tail mean).
