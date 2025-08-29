@@ -276,6 +276,297 @@ This project demonstrates that **risk cannot be captured by a single metric**.
 
 **Final Insight:** A robust risk management framework must triangulate across **VaR, ES, liquidity adjustments, and denoised covariance matrices**. Only then can institutions achieve a realistic, crisis-ready assessment of their market exposure.
 
+You’re right—I hadn’t spelled the math out. Here’s a clean, copy-pasteable **“Mathematical Formulas & Derivations”** section you can drop into your README right after the Findings/Results. I included each method you used (VaR—parametric/historical/MC, ES—parametric/historical, liquidity metrics, LAES, MP law + denoising, PCA, sub-additivity, and portfolio aggregation). All equations are in LaTeX blocks.
+
+---
+
+# 13. Mathematical Formulas & Derivations
+
+## 13.1 Notation (quick reference)
+
+* $P_t$: adjusted close price at day $t$
+* $r_t = \ln(P_t) - \ln(P_{t-1})$: log return
+* $\boldsymbol{w}\in\mathbb{R}^N$: portfolio weights, $\sum_i w_i = 1$
+* $\boldsymbol{\mu}\in\mathbb{R}^N$: mean vector of returns
+* $\Sigma\in\mathbb{R}^{N\times N}$: covariance matrix of returns
+* $\mu_p = \boldsymbol{w}^\top \boldsymbol{\mu}$, $\sigma_p^2 = \boldsymbol{w}^\top \Sigma \boldsymbol{w}$
+* $V$: portfolio value (e.g., $$V=\$1{,}000{,}000$$)
+* Confidence level $\alpha \in (0,1)$ (e.g., $0.95$); standard normal quantile $z_\alpha$
+* Loss $L = -R \cdot V$, where $R$ is portfolio return
+
+---
+
+## 13.2 VaR (Value at Risk)
+
+### 13.2.1 Definition (loss quantile)
+
+$$
+\mathrm{VaR}_\alpha(L) \;=\; \inf\{ \ell \in \mathbb{R} \,:\, \mathbb{P}(L \le \ell) \ge \alpha \}.
+$$
+
+Equivalent on **returns** $R$: if $L=-VR$,
+
+$$
+\mathrm{VaR}_\alpha(L) = V \cdot \big(-q_R(1-\alpha)\big),
+$$
+
+where $q_R(p)$ is the $p$-quantile of $R$.
+
+### 13.2.2 Parametric (Variance–Covariance) VaR (Normal)
+
+Assume portfolio returns $R_p \sim \mathcal{N}(\mu_p, \sigma_p^2)$. Then
+
+$$
+q_{R_p}(1-\alpha) = \mu_p + \sigma_p \, z_{1-\alpha}.
+$$
+
+Loss quantile:
+
+$$
+\boxed{ \mathrm{VaR}_\alpha^{\text{para}} \;=\; V \cdot \big( -q_{R_p}(1-\alpha) \big)
+\;=\; V \cdot \left( -\mu_p - \sigma_p z_{1-\alpha} \right). }
+$$
+
+Equivalently (same thing, rearranged):
+
+$$
+\mathrm{VaR}_\alpha^{\text{para}} = V \cdot \left( z_\alpha \sigma_p - \mu_p \right),
+\quad \text{since } z_\alpha = -z_{1-\alpha}.
+$$
+
+**Portfolio moments:**
+
+$$
+\mu_p = \boldsymbol{w}^\top \boldsymbol{\mu}, 
+\qquad
+\sigma_p = \sqrt{\boldsymbol{w}^\top \Sigma \boldsymbol{w}}.
+$$
+
+### 13.2.3 Historical Simulation VaR
+
+Let $\{r_t\}_{t=1}^T$ be historical portfolio returns. The empirical quantile:
+
+$$
+\boxed{ \mathrm{VaR}_\alpha^{\text{hist}} \;=\; V \cdot \Big( - \widehat{q}_R(1-\alpha) \Big), }
+$$
+
+where $\widehat{q}_R(1-\alpha)$ is the empirical $(1-\alpha)$-quantile of $\{r_t\}$.
+
+### 13.2.4 Monte Carlo VaR
+
+Simulate $M$ draws $R^{(1)},\dots,R^{(M)}$ from an assumed model (e.g., normal, t, GARCH). The empirical quantile:
+
+$$
+\boxed{ \mathrm{VaR}_\alpha^{\text{MC}} \;=\; V \cdot \Big( - \widehat{q}_{R^{(m)}}(1-\alpha) \Big). }
+$$
+
+### 13.2.5 Time scaling (i.i.d. normal approximation)
+
+For horizon $h$ days (i.i.d., normal),
+
+$$
+\mu_{p,h} = h\,\mu_p, 
+\qquad 
+\sigma_{p,h} = \sqrt{h}\,\sigma_p,
+$$
+
+$$
+\mathrm{VaR}_{\alpha,h}^{\text{para}} 
+= V \cdot \left( z_\alpha \sigma_{p,h} - \mu_{p,h} \right)
+= V \cdot \left( z_\alpha \sqrt{h}\,\sigma_p - h\,\mu_p \right).
+$$
+
+(*Caveat:* scaling can break under volatility clustering/heavy tails.)
+
+---
+
+## 13.3 Expected Shortfall (ES)
+
+### 13.3.1 Definition (continuous)
+
+$$
+\boxed{ \mathrm{ES}_\alpha(L) 
+= \mathbb{E}[\,L \mid L \ge \mathrm{VaR}_\alpha(L)\,] 
+= \frac{1}{1-\alpha} \int_\alpha^1 q_L(u)\, du. }
+$$
+
+### 13.3.2 Discrete estimator (historical/MC)
+
+Sort losses $L_{(1)} \le \dots \le L_{(T)}$, with $k=\lceil \alpha T\rceil$:
+
+$$
+\boxed{ \widehat{\mathrm{ES}}_\alpha 
+= \frac{1}{T-k} \sum_{i=k+1}^{T} L_{(i)}. }
+$$
+
+### 13.3.3 Parametric ES (Normal losses)
+
+If $R_p \sim \mathcal{N}(\mu_p,\sigma_p^2)$, loss $L=-VR_p$ is Normal$\big(-V\mu_p, (V\sigma_p)^2\big)$. Then
+
+$$
+\boxed{ \mathrm{ES}_\alpha^{\text{para}}
+= V\left(-\mu_p + \sigma_p\,\frac{\phi(z_\alpha)}{1-\alpha}\right), }
+$$
+
+where $\phi(\cdot)$ is the standard normal pdf.
+
+---
+
+## 13.4 Liquidity metrics (bid–ask) and LAES
+
+### 13.4.1 Mid-price and effective cost
+
+$$
+\text{Mid}_t = \frac{\text{ASK}_t + \text{BID}_t}{2},\qquad
+\text{EffCost}_t = 
+\begin{cases}
+\frac{\text{PRC}_t - \text{Mid}_t}{\text{Mid}_t}, & \text{buyer-initiated} \\
+\frac{\text{Mid}_t - \text{PRC}_t}{\text{Mid}_t}, & \text{seller-initiated}
+\end{cases}
+$$
+
+### 13.4.2 Spread measures
+
+$$
+\text{Quoted}_t = \text{ASK}_t - \text{BID}_t,\qquad
+\text{PropQuoted}_t = \frac{\text{ASK}_t - \text{BID}_t}{\text{Mid}_t},
+$$
+
+$$
+\text{Effective}_t = 2\left|\text{PRC}_t-\text{Mid}_t\right|,\qquad
+\text{PropEffective}_t = 2\frac{\left|\text{PRC}_t-\text{Mid}_t\right|}{\text{PRC}_t}.
+$$
+
+### 13.4.3 PCA on standardized spreads
+
+Standardize $X\in\mathbb{R}^{T\times d}$ (columns = spread measures), then PCA:
+
+$$
+X = U \Lambda^{1/2} V^\top,\qquad
+\text{scores}=X V_k,\quad \text{var explained}=\frac{\sum_{i=1}^k \lambda_i}{\sum_{i=1}^d \lambda_i}.
+$$
+
+### 13.4.4 Liquidity-Adjusted ES (LAES)
+
+Let $LI$ be a (scaled) liquidity index (e.g., mean of first 1–2 PCs), and $P$ the prevailing price:
+
+$$
+\boxed{ \mathrm{LAES}_\alpha \;=\; \mathrm{ES}_\alpha \;+\; \frac{P}{2}\cdot LI. }
+$$
+
+
+---
+
+## 13.5 Marchenko–Pastur (M–P) law & Denoising
+
+### 13.5.1 M–P eigenvalue density
+
+For $q=T/N$ and noise variance $\sigma^2$,
+
+$$
+\lambda_\pm = \sigma^2(1\pm\sqrt{q})^2,
+$$
+
+$$
+\boxed{ f(\lambda) 
+= \frac{1}{2\pi\sigma^2 q \lambda}\sqrt{(\lambda_+ - \lambda)(\lambda - \lambda_-)}\;\; \text{for}\;\; \lambda\in[\lambda_-,\lambda_+]. }
+$$
+
+Eigenvalues inside $[\lambda_-,\lambda_+]$ are “noise-bulk”; outside are potential **signal**.
+
+### 13.5.2 Denoising pipeline (eigen-KDE idea used by Riskfolio)
+
+1. **Eigen-decompose** sample covariance $\Sigma = Q \Lambda Q^\top$.
+2. **Estimate** noise bulk (via M–P or KDE) and **shrink/replace** bulk eigenvalues $\{\lambda_i\}$ by a common/banded level $\tilde{\lambda}$.
+3. **Reconstruct** denoised covariance: $\tilde{\Sigma} = Q \tilde{\Lambda} Q^\top$, where $\tilde{\Lambda}$ has adjusted eigenvalues.
+4. (Optional **detoning**) remove market component (largest eigenvector) if desired.
+
+**Parametric VaR with denoised covariance:**
+
+$$
+\tilde{\sigma}_p = \sqrt{\boldsymbol{w}^\top \tilde{\Sigma}\, \boldsymbol{w}},\qquad
+\boxed{ \mathrm{VaR}_\alpha^{\text{para, denoise}} 
+= V\left(z_\alpha \tilde{\sigma}_p - \mu_p\right). }
+$$
+
+---
+
+## 13.6 Sub-additivity & Coherence
+
+### 13.6.1 Coherent risk measure axioms (for loss variable $X$)
+
+A risk measure $\rho(\cdot)$ is **coherent** if for all $X,Y$ and $a\ge 0$:
+
+1. **Monotonicity:** $X \le Y \Rightarrow \rho(X) \le \rho(Y)$.
+2. **Sub-additivity:** $\boxed{\rho(X+Y) \le \rho(X)+\rho(Y)}$.
+3. **Positive homogeneity:** $\rho(aX)=a\rho(X)$.
+4. **Translation invariance:** $\rho(X+a)=\rho(X)+a$.
+
+**Expected Shortfall** is coherent; **VaR** can violate sub-additivity in some distributions.
+
+---
+
+## 13.7 Portfolio aggregation (asset ↦ portfolio)
+
+### 13.7.1 From asset returns to portfolio return
+
+$$
+R_p = \sum_{i=1}^N w_i r_i = \boldsymbol{w}^\top \boldsymbol{r},\qquad
+\mu_p = \boldsymbol{w}^\top \boldsymbol{\mu},\qquad
+\sigma_p^2 = \boldsymbol{w}^\top \Sigma \boldsymbol{w}.
+$$
+
+### 13.7.2 From return to dollar loss
+
+$$
+L = -V R_p \quad\Rightarrow\quad \mathrm{VaR}_\alpha(L) = V\cdot \big(-q_{R_p}(1-\alpha)\big),\quad
+\mathrm{ES}_\alpha(L) = V\cdot \mathbb{E}\!\left[-R_p \mid -R_p \ge \frac{\mathrm{VaR}_\alpha(L)}{V}\right].
+$$
+
+---
+
+## 13.8 Useful Normal identities
+
+* $z_\alpha = \Phi^{-1}(\alpha)$ where $\Phi(\cdot)$ is the standard normal CDF.
+* $\phi(z) = \dfrac{1}{\sqrt{2\pi}}e^{-z^2/2}$.
+* For $X\sim \mathcal{N}(\mu,\sigma^2)$,
+
+$$
+\mathbb{E}[X \mid X \le \mu + \sigma z_\alpha] 
+= \mu - \sigma \frac{\phi(z_\alpha)}{\alpha},\quad
+\mathbb{E}[X \mid X \ge \mu + \sigma z_\alpha] 
+= \mu + \sigma \frac{\phi(z_\alpha)}{1-\alpha}.
+$$
+
+(These yield the closed-form ES for Gaussian models.)
+
+---
+
+### 13.9 Optional: Cornish–Fisher (non-normal adjustment)
+
+If wanted, adjust quantiles for skewness $\gamma_1$ and excess kurtosis $\gamma_2$ of returns:
+
+$$
+z_{\alpha}^{\text{CF}} \approx z_\alpha 
++ \frac{\gamma_1}{6}(z_\alpha^2-1)
++ \frac{\gamma_2}{24}(z_\alpha^3-3z_\alpha)
+- \frac{\gamma_1^2}{36}(2z_\alpha^3-5z_\alpha).
+$$
+
+Then use $z_{\alpha}^{\text{CF}}$ in the parametric VaR formula.
+
+---
+
+## 13.10 Where these plug into your code
+
+* **Parametric VaR/ES:** Sections 13.2.2 and 13.3.3 → functions `VaR_parametric`, `ES_parametric`.
+* **Historical VaR/ES:** Sections 13.2.3 and 13.3.2 → functions `VaR_historical`, `ES_historical` (empirical percentiles and tail mean).
+* **Monte Carlo VaR:** Section 13.2.4 → function `MC_VaR` (quantile of simulated returns).
+* **Liquidity metrics & LAES:** Sections 13.4.1–13.4.4 → spread computations, PCA, then `LAES = ES + (P/2)·LI`.
+* **MP & Denoising:** Sections 13.5.1–13.5.2 → Riskfolio’s `ParamsEstimation.covar_matrix` (KDE-eigen denoising) then `VaR_parametric_denoised`.
+* **Sub-additivity:** Section 13.6 → your two toy examples verifying $\rho(X+Y)\le \rho(X)+\rho(Y)$.
+
+
 
 
 
